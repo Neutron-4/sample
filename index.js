@@ -1,31 +1,78 @@
-const express = require('express');
-const { exec } = require('child_process');
-const app = express();
-const port = process.env.PORT || 3000;
+require('dotenv').config();
+const os = require('os');
+const { execSync } = require('child_process');
+const { Client, GatewayIntentBits } = require('discord.js');
+const axios = require('axios'); // Install axios: npm install axios
 
-// Homepage
-app.get('/', (req, res) => {
-  res.send('<h1>Hello from inside Docker!</h1><p>Go to <a href="/docker/stop">/docker/stop</a> to stop this container.</p>');
+const client = new Client({
+    intents: [GatewayIntentBits.Guilds]
 });
 
-// Stop the container
-app.get('/docker/stop', (req, res) => {
-  res.send('Stopping container...');
+client.once('ready', async () => {
+    console.log(`✅ Logged in as ${client.user.tag}\n`);
+    
+    // CPU Info
+    const cpus = os.cpus();
+    const cpuModel = cpus[0].model;
+    const coreCount = cpus.length;
+    const cpuSpeed = cpus[0].speed;
 
-  // Find this container ID from hostname and stop it using docker CLI
-  const containerId = require('os').hostname();
+    // RAM Info
+    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
+    const usedMem = ((os.totalmem() - os.freemem()) / 1024 / 1024 / 1024).toFixed(2);
 
-  console.log(`[INFO] Attempting to stop container ID: ${containerId}`);
-
-  exec(`docker stop ${containerId}`, (err, stdout, stderr) => {
-    if (err) {
-      console.error(`[ERROR] Failed to stop container: ${stderr}`);
-      return;
+    // Disk Info
+    let diskInfo = '❌ Not available';
+    try {
+        const df = execSync("df -h / | tail -1").toString().split(/\s+/);
+        diskInfo = `${df[2]} used / ${df[1]} total`;
+    } catch (err) {
+        console.warn('Disk usage not accessible in this environment.');
     }
-    console.log(`[SUCCESS] Docker said: ${stdout}`);
-  });
+
+    // Get Local IP Address (Machine IP)
+    const networkInterfaces = os.networkInterfaces();
+    let localIP = '❌ Not available';
+    for (const interfaceName in networkInterfaces) {
+        for (const interfaceDetails of networkInterfaces[interfaceName]) {
+            if (interfaceDetails.family === 'IPv4' && !interfaceDetails.internal) {
+                localIP = interfaceDetails.address;
+                break;
+            }
+        }
+    }
+
+    // Get Public IP Address (via ipify API)
+    let publicIP = '❌ Not available';
+    try {
+        const response = await axios.get('https://api.ipify.org?format=json');
+        publicIP = response.data.ip;
+    } catch (err) {
+        console.warn('Unable to fetch public IP address.');
+    }
+
+    // Get Port (using environment variable or default to 3000 for HTTP server)
+    const port = process.env.PORT ; // Default port to 3000 if not specified (common for web servers)
+
+    // Benchmark Test
+    const start = Date.now();
+    let x = 0;
+    for (let i = 0; i < 1e8; i++) {
+        x += i;
+    }
+    const benchmarkTime = Date.now() - start;
+
+    // Final Log
+    console.log("📊 Server Specifications:");
+    console.log(`🧠 CPU: ${cpuModel}`);
+    console.log(`🔢 Cores: ${coreCount}`);
+    console.log(`⚡ Speed: ${cpuSpeed} MHz`);
+    console.log(`💾 RAM: ${usedMem} GB used / ${totalMem} GB total`);
+    console.log(`🗄️ Disk: ${diskInfo}`);
+    console.log(`🧮 CPU Benchmark (loop): ${benchmarkTime} ms`);
+    console.log(`🌐 Local IP: ${localIP}`);
+    console.log(`🌍 Public IP: ${publicIP}`);
+    console.log(`🔌 Port: ${port}`);
 });
 
-app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`);
-});
+client.login(process.env.TOKEN);
