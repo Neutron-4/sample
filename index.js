@@ -45,6 +45,26 @@ client.once('ready', () => {
     console.log(`💾 RAM: ${usedMem} GB used / ${totalMem} GB total`);
     console.log(`🗄️ Disk: ${diskInfo}`);
     console.log(`🧮 CPU Benchmark (loop): ${benchmarkTime} ms`);
+
+
+
+    let exactCpuModel = 'Unknown';
+
+try {
+    if (process.platform === 'linux') {
+        exactCpuModel = execSync("lscpu | grep 'Model name' | awk -F ':' '{print $2}'").toString().trim();
+    } else if (process.platform === 'win32') {
+        exactCpuModel = execSync("wmic cpu get Name").toString().split('\n')[1].trim();
+    } else if (process.platform === 'darwin') {
+        exactCpuModel = execSync("sysctl -n machdep.cpu.brand_string").toString().trim();
+    }
+} catch (err) {
+    console.warn('Unable to fetch exact CPU model:', err.message);
+}
+
+
+    console.log(`🧠 CPU: ${exactCpuModel}`);
+
 });
 
 client.login(process.env.TOKEN);
